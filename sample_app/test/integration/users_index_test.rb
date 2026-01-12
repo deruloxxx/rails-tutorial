@@ -12,7 +12,7 @@ class UsersIndexTest < ActionDispatch::IntegrationTest
     get users_path
     assert_template 'users/index'
     assert_select 'div.pagination'
-    first_page_of_users = User.paginate(page: 1)
+    first_page_of_users = User.where(activated: true).paginate(page: 1)
     first_page_of_users.each do |user|
       assert_select 'a[href=?]', user_path(user), text: user.name
       unless user == @admin
@@ -36,5 +36,43 @@ class UsersIndexTest < ActionDispatch::IntegrationTest
       delete user_path(@admin)
     end
     assert_redirected_to root_url
+  end
+  
+  test "index should only show activated users" do
+    log_in_as(@admin)
+    # 有効化されていないユーザーを作成
+    unactivated_user = User.create!(name: "Unactivated User",
+                                    email: "unactivated@example.com",
+                                    password: "password",
+                                    password_confirmation: "password",
+                                    activated: false)
+    
+    get users_path
+    assert_template 'users/index'
+    # 有効化されたユーザーは表示される
+    assert_select 'a[href=?]', user_path(@admin), text: @admin.name
+    assert_select 'a[href=?]', user_path(@non_admin), text: @non_admin.name
+    # 有効化されていないユーザーは表示されない
+    assert_select 'a[href=?]', user_path(unactivated_user), count: 0
+  end
+  
+  test "should redirect show page for unactivated user" do
+    log_in_as(@admin)
+    # 有効化されていないユーザーを作成
+    unactivated_user = User.create!(name: "Unactivated User",
+                                    email: "unactivated@example.com",
+                                    password: "password",
+                                    password_confirmation: "password",
+                                    activated: false)
+    
+    get user_path(unactivated_user)
+    assert_redirected_to root_url
+  end
+  
+  test "should show activated user profile page" do
+    log_in_as(@admin)
+    get user_path(@non_admin)
+    assert_template 'users/show'
+    assert_select 'h1', text: @non_admin.name
   end
 end
